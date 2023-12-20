@@ -6,7 +6,18 @@ from pandas_ta.volatility import atr
 from pandas_ta.utils import get_drift, get_offset, verify_series, zero
 
 
-def adx(high, low, close, length=None, lensig=None, scalar=None, mamode=None, drift=None, offset=None, **kwargs):
+def adx(
+    high,
+    low,
+    close,
+    length=None,
+    lensig=None,
+    scalar=None,
+    mamode=None,
+    drift=None,
+    offset=None,
+    **kwargs,
+):
     """Indicator: ADX"""
     # Validate Arguments
     length = length if length and length > 0 else 14
@@ -19,26 +30,39 @@ def adx(high, low, close, length=None, lensig=None, scalar=None, mamode=None, dr
     drift = get_drift(drift)
     offset = get_offset(offset)
 
-    if high is None or low is None or close is None: return
+    if high is None or low is None or close is None:
+        return
 
     # Calculate Result
     atr_ = atr(high=high, low=low, close=close, length=length)
 
     up = high - high.shift(drift)  # high.diff(drift)
-    dn = low.shift(drift) - low    # low.diff(-drift).shift(drift)
+    dn = low.shift(drift) - low  # low.diff(-drift).shift(drift)
 
-    pos = ((up > dn) & (up > 0) & (~numpy.isclose(up,dn))) * up
-    neg = ((dn > up) & (dn > 0) & (~numpy.isclose(up,dn))) * dn
+    pos = ((up > dn) & (up > 0) & (~numpy.isclose(up, dn))) * up
+    neg = ((dn > up) & (dn > 0) & (~numpy.isclose(up, dn))) * dn
 
     pos = pos.apply(zero)
     neg = neg.apply(zero)
 
+    pos.iloc[length - 1] = pos[:length].sum()
+    pos[: length - 1] = 0
+    neg.iloc[length - 1] = neg[:length].sum()
+    neg[: length - 1] = 0
+
     k = scalar / atr_
-    dmp = k * ma(mamode, pos, length=length)
-    dmn = k * ma(mamode, neg, length=length)
+    alpha = 1 / length
+    dmp = k * pos.ewm(alpha=alpha, adjust=False, min_periods=length).mean()
+    dmn = k * neg.ewm(alpha=alpha, adjust=False, min_periods=length).mean()
 
     dx = scalar * (dmp - dmn).abs() / (dmp + dmn)
+    dx = dx.shift(-length)
+    dx.iloc[length - 1] = dx[:length].sum()
+    dx[: length - 1] = 0
+
     adx = ma(mamode, dx, length=lensig)
+    adx[: length - 1] = np.nan
+    adx = adx.shift(length)
 
     # Offset
     if offset != 0:
@@ -72,8 +96,7 @@ def adx(high, low, close, length=None, lensig=None, scalar=None, mamode=None, dr
     return adxdf
 
 
-adx.__doc__ = \
-"""Average Directional Movement (ADX)
+adx.__doc__ = """Average Directional Movement (ADX)
 
 Average Directional Movement is meant to quantify trend strength by measuring
 the amount of movement in a single direction.
