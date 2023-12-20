@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import numpy
 from pandas import DataFrame
 from pandas_ta.overlap import ma
 from pandas_ta.volatility import atr
@@ -26,8 +27,8 @@ def adx(high, low, close, length=None, lensig=None, scalar=None, mamode=None, dr
     up = high - high.shift(drift)  # high.diff(drift)
     dn = low.shift(drift) - low    # low.diff(-drift).shift(drift)
 
-    pos = ((up > dn) & (up > 0)) * up
-    neg = ((dn > up) & (dn > 0)) * dn
+    pos = ((up > dn) & (up > 0) & (~numpy.isclose(up,dn))) * up
+    neg = ((dn > up) & (dn > 0) & (~numpy.isclose(up,dn))) * dn
 
     pos = pos.apply(zero)
     neg = neg.apply(zero)
